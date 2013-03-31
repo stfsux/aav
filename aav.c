@@ -11,6 +11,11 @@
 #include <string.h>
 #include <ctype.h>
 
+#define FILE_UNK    (unsigned char)(~0)
+#define FILE_ANSI   1
+#define FILE_ASCII  2
+#define FILE_BIN    3
+
 #define AAV_USAGE L"aav [OPTIONS] FILE...\n"
 
 /* Code pages 437 convertion to Unicode charset.         */
@@ -60,8 +65,10 @@ wchar_t cp437[] =
 };
 
 char* strtolower (char* str);
+unsigned char get_file_ext (char* str);
 unsigned char is_csi_endcmd (char c);
 void draw_ansi (char* ansi, unsigned int size);
+void draw_ascii (char* ascii, unsigned int size);
 
 int
  main (int argc, char* const argv[])
@@ -70,7 +77,7 @@ int
   int infd = 0;
   unsigned int insize = 0;
   void* inmap = NULL;
-  char* byteptr = NULL;
+  unsigned char ft = 0;
 
   locale = strtolower (locale);
   if (strstr (locale, "utf8") == NULL && 
@@ -99,8 +106,27 @@ int
     fwprintf (stderr, L"%s: cannot map file `%s' into memory.\n", argv[0], argv[1]);
     return 0;
   }
-  byteptr = inmap;
-  draw_ansi (byteptr, insize);
+  ft = get_file_ext (argv[1]);
+  if (ft == (unsigned char)~0)
+  {
+    fwprintf (stderr, L"%s: cannot identify file type of `%s'.\n", argv[0], argv[1]);
+    munmap (inmap, insize);
+    close (infd);
+    return 0;
+  }
+  switch (ft)
+  {
+    case FILE_ANSI:
+      draw_ansi (inmap, insize);
+      break;
+
+    case FILE_ASCII:
+      draw_ascii (inmap, insize);
+      break;
+
+    default:
+      fwprintf (stderr, L"%s: file type not supported.\n", argv[0]);
+  }
   munmap (inmap, insize);
   close (infd);
   return 0;
@@ -113,6 +139,29 @@ char*
   for (i = 0; i < strlen (str); i++)
     str[i] = tolower(str[i]);
   return str;
+}
+
+unsigned char
+ get_file_ext (char* str)
+{
+  char ext[10];
+  unsigned int i = 0;
+  char* ptr = strrchr (str, '.');
+  if (ptr == NULL)
+    return ~0;
+  if (strlen (ptr) > 9)
+    return ~0;
+  for (i = 0; i < strlen(ptr); i++)
+    ext[i] = tolower(ptr[i]);
+  ext[i] = 0;
+  if (!strcmp (ext, ".ans"))
+    return FILE_ANSI;
+  else if (!strcmp (ext, ".asc") ||
+           !strcmp (ext, ".nfo"))
+    return FILE_ASCII;
+  else if (!strcmp (ext, ".bin"))
+    return FILE_BIN;
+  return ~0;
 }
 
 unsigned char
@@ -133,15 +182,15 @@ unsigned char
   return 0;
 }
 
-/* Looks like an generated FSM code, isn't it? */
-/* But I really wrote that shit...             */
+/* Looks like a generated FSM code, isn't it? */
+/* But I really wrote that shit...            */
 void
  draw_ansi (char* ansi, unsigned int size)
 {
   char* ptr = ansi;
   char* endptr = (char*)((unsigned long)ansi+size);
   unsigned char state = 0;
-  unsigned int npc = 0, nargs = 0, n = 0;
+  unsigned int npc = 0, nargs = 0, n = 0, npcs = 0;
   unsigned int args[10];
   char cmd[10];
   unsigned char parse_end = 0;
@@ -168,19 +217,19 @@ _nextstate:
             fputwc (cp437[(*ptr-128)&0xFF], stdout);
           else
             fputwc (btowc(*ptr), stdout);
-          if (*ptr == '\n')
-            npc = 0;
-          if (npc < 80)
+          if (npc < 79)
             npc++;
           else
           {
             if (ptr+1 < endptr)
             {
               if (*(ptr+1) != '\n')
-                fputwc (L'\n', stdout);
+                wprintf ( L"\e[0m\n");
               npc = 0;
             }
           }
+          if (*ptr == '\n' || *ptr == '\r')
+            npc = 0;
         }
         goto _nextchar;
 
@@ -206,6 +255,45 @@ _nextstate:
         args[nargs] = strtol (cmd, NULL, 10);
         if (args[nargs] == 40)
           args[nargs] = 49;
+        switch (*ptr)
+        {
+          case 'E':
+          case 'F':
+            npc = 0;
+            wprintf ( L"\e[0m\n");
+            break;
+
+          case 'G':
+            npc = args[0]-1;
+            break;
+
+          case 'H':
+          case 'f':
+            npc = args[1]-1;
+            break;
+
+          case 'C':
+            npc = npc+args[0];
+            if (npc >= 79)
+            {
+              wprintf ( L"\e[0m\n");
+              npc = npc%80;
+            }
+            break;
+
+          case 'D':
+            if (npc != 0)
+              npc = npc - args[0];
+            break;
+
+          case 's':
+            npcs = npc;
+            break;
+
+          case 'u':
+            npc = npcs;
+            break;
+        }
         wprintf (L"%u%c", args[nargs], *ptr);
         nargs++;
         if (is_csi_endcmd (*ptr))
@@ -222,3 +310,19 @@ _nextchar:
   }
   wprintf (L"\e[m\n");
 }
+
+void
+ draw_ascii (char* ascii, unsigned int size)
+{
+  char* ptr = ascii;
+  char* endptr = (char*)((unsigned long)ascii+size);
+  while (ptr != endptr)
+  {
+    if ((unsigned char)*ptr >= 128)
+      fputwc (cp437[(*ptr-128)&0xFF], stdout);
+    else
+      fputwc (btowc(*ptr), stdout);
+    ptr++;
+  }
+}
+
