@@ -1,0 +1,25 @@
+ aav - ANSI/ASCII Art Viewer
+---------------------------------------------------------------------
+aav is a tiny application which draws your favorite ANSI/ASCII pr0n
+on your terminal. Actually, your terminal is able to draw it natively
+since ANSI escape code is supported but most of those pr0n use the
+code page 437 font as a charset. aav just convert that crappy
+non-portable charset to unicode and try to draw it as best possible.
+
+ Supported format
+---------------------------------------------------------------------
+. ASC / NFO / ANS / DIZ
+
+ System required
+---------------------------------------------------------------------
+. Unix-like OS
+. UTF8 locale
+. UTF8 font compliant
+ 
+ Compile
+---------------------------------------------------------------------
+gcc -o aav aav.c -std=c99
+
+ TODO
+---------------------------------------------------------------------
+. BIN file format support
