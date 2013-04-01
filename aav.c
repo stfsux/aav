@@ -126,6 +126,7 @@ int
 
     default:
       fwprintf (stderr, L"%s: file type not supported.\n", argv[0]);
+      break;
   }
   munmap (inmap, insize);
   close (infd);
@@ -157,7 +158,8 @@ unsigned char
   if (!strcmp (ext, ".ans"))
     return FILE_ANSI;
   else if (!strcmp (ext, ".asc") ||
-           !strcmp (ext, ".nfo"))
+           !strcmp (ext, ".nfo") ||
+           !strcpm (ext, ".diz"))
     return FILE_ASCII;
   else if (!strcmp (ext, ".bin"))
     return FILE_BIN;
