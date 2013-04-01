@@ -159,7 +159,7 @@ unsigned char
     return FILE_ANSI;
   else if (!strcmp (ext, ".asc") ||
            !strcmp (ext, ".nfo") ||
-           !strcpm (ext, ".diz"))
+           !strcmp (ext, ".diz"))
     return FILE_ASCII;
   else if (!strcmp (ext, ".bin"))
     return FILE_BIN;
